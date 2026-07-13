@@ -249,10 +249,11 @@ COMPLETA_APPEND_TEMPLATE = (
 )
 
 
-def run_sintesi(dati: dict, max_tokens: int = 6000) -> dict:
+def run_sintesi(dati: dict, max_tokens: int = 16000) -> dict:
     """
-    Prima chiamata, economica: Executive summary + Verdetto operativo + cruscotto.
-    Fa comunque ricerca web reale per fondare il verdetto, ma non scrive le altre 31 sezioni.
+    Prima chiamata, economica rispetto alla relazione completa: Executive summary +
+    Verdetto operativo + cruscotto (incluse le 5 componenti EAS motivate). Fa comunque
+    ricerca web reale per fondare il verdetto, ma non scrive le altre 31 sezioni.
     """
     system = _load_system_prompt() + SINTESI_APPEND
     return _call_api(system, _build_user_message(dati), max_tokens)
