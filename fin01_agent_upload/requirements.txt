@@ -1,0 +1,6 @@
+python-docx>=1.1.0
+certifi
+streamlit
+plotly
+gspread
+google-auth
