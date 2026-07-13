@@ -370,11 +370,13 @@ if strumento and mercato and valuta_strumento:
                     st.stop()
 
             sintesi_pulita, dashboard = agent.extract_dashboard(risultato["report_md"])
+            troncato = risultato.get("stop_reason") == "max_tokens" and not dashboard
 
             registry.update_pratica(
-                pratica["id"], stato="Sintesi prodotta", sintesi_md=sintesi_pulita, dashboard=dashboard,
+                pratica["id"], stato="Sintesi prodotta", sintesi_md=sintesi_pulita,
+                dashboard=dashboard, note=[{"troncato": troncato}] if troncato else [],
             )
-            if risultato.get("stop_reason") == "max_tokens" and not dashboard:
+            if troncato:
                 st.warning(
                     "La sintesi è stata troncata per limite di lunghezza prima del blocco dati finale: "
                     "il cruscotto potrebbe non essere disponibile per questa pratica."
@@ -401,7 +403,15 @@ if st.session_state.get("pratica_attiva"):
         if dashboard:
             render_dashboard(dashboard, capitale_utente=capitale_attivo)
         else:
-            st.caption("Cruscotto non disponibile per questa pratica (il modello non ha restituito il blocco dati atteso).")
+            note = pratica_attiva.get("note") or []
+            era_troncato = any(isinstance(n, dict) and n.get("troncato") for n in note)
+            if era_troncato:
+                st.warning(
+                    "Il cruscotto non è disponibile: la sintesi era stata troncata per limite "
+                    "di lunghezza prima del blocco dati finale."
+                )
+            else:
+                st.caption("Cruscotto non disponibile per questa pratica (il modello non ha restituito il blocco dati atteso).")
 
         if pratica_attiva.get("sintesi_md"):
             with st.expander("Executive summary e verdetto operativo (sezioni 1-2)"):
