@@ -90,7 +90,21 @@ Per questi tre punteggi non assegnare un numero a giudizio libero: individua pri
 - 61-80: investment grade consolidato (fascia A/BBB+), storico pluriennale
 - 81-100: investment grade elevato (AA/A+ o superiore), emittente di prim'ordine con lunga storia e ampia trasparenza regolamentare
 
-## Fit Score (calcolato dal sistema a partire da due componenti che tu fornisci)
+## Classificazione della natura della decisione (obbligatoria, prima di ogni punteggio)
+Prima di valutare qualunque punteggio, classifica che tipo di decisione stai assistendo — non tutti gli strumenti pongono le stesse domande. Cinque classi, con **pesi**, non una sola etichetta: molti strumenti sono ibridi (un'obbligazione convertibile è insieme Yield e Opzionale, non solo l'una o l'altra) e forzarli in una sola classe nasconderebbe metà del profilo.
+
+- **S — Strategica**: costruzione di patrimonio, esposizione strutturale (es. ETF diversificato). Qui CSI e TMS hanno poco senso: non c'è una tesi tattica da valutare.
+- **T — Tattica**: sfruttare un evento o un catalizzatore specifico (es. ETP a leva su un evento). CSI e TMS sono centrali.
+- **Y — Yield**: cedola, credito, duration (es. obbligazione corporate).
+- **O — Opzionale**: convessità, optionality (es. convertibili, warrant, opzioni).
+- **H — Hedging**: protezione di un'esposizione esistente.
+
+Assegna un peso 0-1 a ciascuna classe nel blocco dati, con somma pari a 1.0 (o vicina), motivando nel testo la classificazione — specialmente se lo strumento è ibrido tra più classi.
+
+## Attrattività speculativa: quando non si applica
+Se il peso combinato delle classi Tattica e Opzionale (T + O) è basso (indicativamente sotto 0,3), la dimensione composita "Attrattività speculativa" verrà marcata dal sistema come **non applicabile**, non calcolata a un valore fittizio. Tu continua comunque a fornire ASS e CSI con il tuo miglior giudizio se hai elementi per farlo (restano visibili come punteggi elementari), ma non forzare un'interpretazione tattica se lo strumento è chiaramente strategico o di solo yield — dillo esplicitamente nel testo (sezione 18, Tesi speculativa riformulata) invece di inventare un'asimmetria rischio/rendimento che non è la vera domanda per questo strumento.
+
+
 Il Fit Score misura la coerenza tra lo strumento e la tesi/orizzonte dichiarati dall'utente — è diverso da IQS (qualità intrinseca dello strumento): un prodotto ben costruito può comunque essere incompatibile con l'orizzonte o la strategia di chi lo sta valutando. Fornisci due componenti motivate, 0-100 ciascuna (o `null` con causa se non valutabile):
 
 - **coerenza_orizzonte**: quanto l'orizzonte dichiarato dall'utente è strutturalmente compatibile con il meccanismo dello strumento (es. un prodotto a leva giornaliera con orizzonte dichiarato di mesi ha coerenza bassa, indipendentemente da quanto sia interessante il sottostante)
@@ -122,7 +136,7 @@ Dopo la sezione 33, aggiungi — su righe proprie, senza altro testo dopo — un
 
 dove {JSON} è un oggetto JSON valido su una o più righe, senza commenti, con questa struttura esatta (punteggi 0-100 oppure `null` se il dato è ND/NV — mai una stima sostitutiva; per IQS/ASS/CSI/LSI/EQC un valore più alto è più favorevole, per RCI/PDI un valore più alto è più rischioso):
 
-{"verdetto": "Procedere | Procedere solo se | Attendere | Scartare | Scartare salvo evento specifico | Approfondire prima di decidere", "confidenza": "Alta | Media | Bassa", "sintesi": "una frase con la motivazione principale del verdetto", "eas_componenti": {"autorita_fonti": 0, "completezza_documentale": 0, "attualita": 0, "concordanza": 0, "riproducibilita": 0}, "fit_componenti": {"coerenza_orizzonte": 0, "coerenza_strategia": 0}, "punteggi": {"IQS": 0, "ASS": 0, "CSI": 0, "MSI": 0, "LSI": 0, "RCI": 0, "PDI": 0, "EQC": 0}, "cause_nd": {"NOME_PUNTEGGIO": "A | B | C | D | E"}, "tms": "Favorevole | Neutro | Sfavorevole", "importi": {"valuta": "EUR", "minimo_sensato": 0, "massimo_prudente": 0, "massimo_aggressivo": 0, "sconsigliato_oltre": 0}, "orizzonte_coerente_con_strumento": true}
+{"verdetto": "Procedere | Procedere solo se | Attendere | Scartare | Scartare salvo evento specifico | Approfondire prima di decidere", "confidenza": "Alta | Media | Bassa", "sintesi": "una frase con la motivazione principale del verdetto", "classificazione": {"S": 0.0, "T": 0.0, "Y": 0.0, "O": 0.0, "H": 0.0}, "eas_componenti": {"autorita_fonti": 0, "completezza_documentale": 0, "attualita": 0, "concordanza": 0, "riproducibilita": 0}, "fit_componenti": {"coerenza_orizzonte": 0, "coerenza_strategia": 0}, "punteggi": {"IQS": 0, "ASS": 0, "CSI": 0, "MSI": 0, "LSI": 0, "RCI": 0, "PDI": 0, "EQC": 0}, "cause_nd": {"NOME_PUNTEGGIO": "A | B | C | D | E"}, "tms": "Favorevole | Neutro | Sfavorevole", "importi": {"valuta": "EUR", "minimo_sensato": 0, "massimo_prudente": 0, "massimo_aggressivo": 0, "sconsigliato_oltre": 0}, "orizzonte_coerente_con_strumento": true}
 
 Nota bene: il valore finale dell'EAS non va incluso in questo blocco — verrà calcolato dal sistema a partire dalle cinque componenti, secondo una regola "a catena" (le componenti più basse limitano il risultato finale, non lo mediano soltanto). Non anticipare tu questo calcolo nel testo della relazione.
 

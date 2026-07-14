@@ -126,7 +126,17 @@ def calcola_eas(componenti: dict) -> dict:
     return {"valore": round(valore_finale, 1), "gate": gate}
 
 
-def calcola_composite(punteggi: dict) -> dict:
+SOGLIA_PESO_TATTICO = 0.3
+
+
+def calcola_peso_tattico(classificazione: dict) -> float:
+    """Peso combinato delle classi Tattica (T) e Opzionale (O): sopra la soglia,
+    l'Attrattività speculativa è una domanda sensata per questo strumento."""
+    classificazione = classificazione or {}
+    return (classificazione.get("T") or 0) + (classificazione.get("O") or 0)
+
+
+def calcola_composite(punteggi: dict, classificazione: dict = None) -> dict:
     """
     Calcola le tre dimensioni composite (Qualità esecutiva, Attrattività speculativa,
     Pericolosità) a partire dai punteggi elementari, con propagazione STRETTA
@@ -136,6 +146,13 @@ def calcola_composite(punteggi: dict) -> dict:
     completezza (vedi Caso C della VP-01: un'obbligazione convertibile con 3
     punteggi su 4 mancanti non deve risultare "buona" sulla base dell'unico
     disponibile).
+
+    BP-01 Fase 4: "Attrattività speculativa" ha un terzo stato possibile oltre
+    a numero/None — la stringa "N/A" (non applicabile), quando la classificazione
+    S/T/Y/O/H indica che la domanda stessa non ha senso per questo strumento
+    (es. un ETF strategico: non c'è tesi tattica da misurare). Diverso da "non
+    calcolabile": lì il dato manca, qui la domanda non si pone (vedi Caso B
+    della VP-01, dove ASS/CSI erano stati forzati a un fittizio "50 neutro").
 
     Nota: TMS è categoriale (Favorevole/Neutro/Sfavorevole), non un numero, quindi
     è escluso da questa formula per costruzione — non incluso nella media pesata
@@ -151,9 +168,13 @@ def calcola_composite(punteggi: dict) -> dict:
             valori_pesati.append(v * peso)
         return round(sum(valori_pesati), 1)
 
+    attrattivita = media_pesata([("ASS", 0.5625), ("CSI", 0.4375)])
+    if classificazione is not None and calcola_peso_tattico(classificazione) < SOGLIA_PESO_TATTICO:
+        attrattivita = "N/A"
+
     return {
         "qualita_esecutiva": media_pesata([("IQS", 0.30), ("MSI", 0.25), ("LSI", 0.25), ("EQC", 0.20)]),
-        "attrattivita_speculativa": media_pesata([("ASS", 0.5625), ("CSI", 0.4375)]),
+        "attrattivita_speculativa": attrattivita,
         "pericolosita": media_pesata([("PDI", 0.60), ("RCI", 0.40)]),
     }
 
@@ -235,7 +256,11 @@ def applica_gates(dashboard: dict) -> dict:
     """
     dashboard["verdetto_modello"] = dashboard.get("verdetto")
     dashboard["declassamenti"] = []
-    dashboard["composite"] = calcola_composite(dashboard.get("punteggi") or {})
+    classificazione = dashboard.get("classificazione")
+    dashboard["composite"] = calcola_composite(dashboard.get("punteggi") or {}, classificazione)
+    dashboard["tms_applicabile"] = (
+        classificazione is None or calcola_peso_tattico(classificazione) >= SOGLIA_PESO_TATTICO
+    )
 
     # Gate EAS: la base informativa è adeguata per un verdetto?
     eas = calcola_eas(dashboard.get("eas_componenti") or {})

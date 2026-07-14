@@ -179,13 +179,32 @@ def _render_radar(punteggi: dict, cause_nd: dict = None):
 TMS_COLORI = {"Favorevole": "#1a9c5a", "Neutro": "#8a8a8a", "Sfavorevole": "#c0392b"}
 
 
-def _render_tms(tms: str):
+def _render_tms(tms: str, applicabile: bool = True):
+    if not applicabile:
+        st.markdown(
+            """<span style="background: #8a8a8a22; color: #8a8a8a; padding: 4px 12px;
+            border-radius: 999px; font-size: 0.85rem; font-weight: 600;">Timing: non applicabile
+            (strumento a esposizione strutturale, non tattica)</span>""",
+            unsafe_allow_html=True,
+        )
+        return
     colore = TMS_COLORI.get(tms, "#8a8a8a")
     st.markdown(
         f"""<span style="background: {colore}22; color: {colore}; padding: 4px 12px;
         border-radius: 999px; font-size: 0.85rem; font-weight: 600;">Timing: {tms or 'n/d'}</span>""",
         unsafe_allow_html=True,
     )
+
+
+LABEL_CLASSI = {"S": "Strategica", "T": "Tattica", "Y": "Yield", "O": "Opzionale", "H": "Hedging"}
+
+
+def _render_classificazione(classificazione: dict):
+    if not classificazione:
+        return
+    parti = [f"{LABEL_CLASSI.get(k, k)} {round(v * 100)}%" for k, v in classificazione.items() if v and v > 0.01]
+    if parti:
+        st.caption("Classificazione: " + " · ".join(parti))
 
 
 def _render_importi(importi: dict, capitale_utente: float):
@@ -220,7 +239,9 @@ def _render_composite(composite: dict, fit: dict = None):
     for col, (chiave, etichetta) in zip(cols[:3], LABEL_COMPOSITE.items()):
         valore = composite.get(chiave)
         with col:
-            if valore is None:
+            if valore == "N/A":
+                st.metric(etichetta, "Non applicabile")
+            elif valore is None:
                 st.metric(etichetta, "Non calcolabile")
             else:
                 st.metric(etichetta, f"{valore}/100")
@@ -263,7 +284,8 @@ def _render_difficolta_gestionale(idg: dict):
 def render_dashboard(dashboard: dict, capitale_utente: float = 0):
     st.subheader("Schermata di sintesi")
     _render_verdict_badge(dashboard)
-    _render_tms(dashboard.get("tms"))
+    _render_classificazione(dashboard.get("classificazione"))
+    _render_tms(dashboard.get("tms"), dashboard.get("tms_applicabile", True))
     if dashboard.get("difficolta_gestionale"):
         _render_difficolta_gestionale(dashboard["difficolta_gestionale"])
     st.write("")
