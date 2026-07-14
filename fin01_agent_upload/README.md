@@ -121,3 +121,5 @@ La CLI usa sempre il registro JSON locale, indipendentemente dai secrets:
   docs.anthropic.com/en/docs/about-claude/models prima del primo uso reale.
 - `agent.calcola_eas()` e `agent.applica_gate_eas()` sono testati con casi
   limite (vedi commenti nel codice) prima di ogni consegna.
+
+<!-- Aggiornamenti da qui in poi possono essere applicati automaticamente da Claude via token GitHub -->
