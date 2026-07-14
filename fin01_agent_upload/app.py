@@ -110,6 +110,9 @@ def _render_verdict_badge(dashboard: dict):
             <div style="font-size: 1.6rem; font-weight: 700; color: {colore}; margin: 4px 0 8px 0;">
                 {verdetto}
             </div>
+            <div style="font-size: 0.7rem; opacity: 0.6; text-transform: uppercase; letter-spacing: 0.04em; margin-top: 6px;">
+                Motivo dominante
+            </div>
             <div style="font-size: 0.95rem; opacity: 0.9;">{sintesi}</div>
         </div>
         """,
@@ -231,6 +234,23 @@ LABEL_COMPOSITE = {
     "pericolosita": "Pericolosità",
 }
 
+# Fasce qualitative: solo presentazione, non toccano formule/gate/protocollo.
+# Ogni dimensione ha soglie proprie perché "alto" significa cose diverse
+# (per Pericolosità un valore alto è negativo, per le altre è positivo).
+FASCE = {
+    "qualita_esecutiva": [(80, "Eccellente"), (60, "Buona"), (40, "Adeguata"), (20, "Debole"), (0, "Scarsa")],
+    "pericolosita": [(80, "Molto alta"), (60, "Alta"), (40, "Moderata"), (20, "Bassa"), (0, "Molto bassa")],
+    "attrattivita_speculativa": [(80, "Molto elevata"), (60, "Elevata"), (40, "Moderata"), (20, "Bassa"), (0, "Molto bassa")],
+    "fit": [(80, "Molto elevata"), (65, "Elevata"), (40, "Media"), (0, "Bassa")],
+}
+
+
+def _fascia(valore, chiave):
+    for soglia, etichetta in FASCE.get(chiave, []):
+        if valore >= soglia:
+            return etichetta
+    return ""
+
 
 def _render_composite(composite: dict, fit: dict = None):
     st.caption("Dimensioni composite (calcolate dal sistema, propagazione stretta dell'indeterminatezza)")
@@ -244,13 +264,13 @@ def _render_composite(composite: dict, fit: dict = None):
             elif valore is None:
                 st.metric(etichetta, "Non calcolabile")
             else:
-                st.metric(etichetta, f"{valore}/100")
+                st.metric(etichetta, f"{valore}/100", delta=_fascia(valore, chiave), delta_color="off")
     with cols[3]:
         valore_fit = fit.get("valore")
         if valore_fit is None:
             st.metric("Fit Score (utente)", "Non calcolabile")
         else:
-            st.metric("Fit Score (utente)", f"{valore_fit}/100", help=fit.get("gate"))
+            st.metric("Fit Score (utente)", f"{valore_fit}/100", delta=_fascia(valore_fit, "fit"), delta_color="off", help=fit.get("gate"))
 
 
 def _render_difficolta_gestionale(idg: dict):
