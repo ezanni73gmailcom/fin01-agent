@@ -158,42 +158,134 @@ def calcola_composite(punteggi: dict) -> dict:
     }
 
 
-def applica_gate_eas(dashboard: dict) -> dict:
+def calcola_fit_score(componenti: dict) -> dict:
     """
-    Applica il gate EAS al verdetto del modello, in modo deterministico.
-    Se l'EAS è insufficiente, declassa il verdetto verso una decisione più
-    cauta, indipendentemente da cosa ha scritto il modello, e registra
-    l'intervento esplicitamente (mai silenzioso).
+    Fit Score: coerenza tra strumento e tesi/orizzonte dichiarati dall'utente —
+    non la qualità intrinseca dello strumento (quella è IQS). Dipende solo da
+    due componenti oggettivamente valutabili dal modello sulla base dei dati
+    dichiarati (orizzonte, strategia): non includono più esperienza o
+    frequenza di monitoraggio, che sono giudizi dell'utente su se stesso, non
+    fatti sulla compatibilità strumento/tesi. Quei due dati alimentano invece
+    l'Indice di Difficoltà Gestionale (calcola_difficolta_gestionale), che
+    NON influisce sul verdetto sullo strumento.
     """
-    componenti = dashboard.get("eas_componenti") or {}
-    eas = calcola_eas(componenti)
-    dashboard["eas"] = eas
+    pesi = [("coerenza_orizzonte", 0.55), ("coerenza_strategia", 0.45)]
+    valori = [componenti.get(k) for k, _ in pesi]
+    if any(v is None for v in valori):
+        return {"valore": None, "gate": "non calcolabile"}
+
+    valore_finale = round(sum(componenti[k] * peso for k, peso in pesi), 1)
+    if valore_finale >= 65:
+        gate = "analisi ordinaria"
+    elif valore_finale >= 40:
+        gate = "procedere solo con modifiche"
+    else:
+        gate = "scartare o modificare strategia"
+    return {"valore": valore_finale, "gate": gate}
+
+
+MAPPA_ESPERIENZA = {
+    "Nessuna/principiante": 20,
+    "Intermedia": 55,
+    "Esperta/professionale": 90,
+}
+MAPPA_FREQUENZA = {
+    "Sporadicamente (mensile o meno)": 20,
+    "Settimanale": 55,
+    "Giornaliera/intraday": 90,
+}
+
+
+def calcola_difficolta_gestionale(dati: dict, dashboard: dict) -> dict:
+    """
+    Indice di Difficoltà Gestionale (IDG) — deliberatamente SEPARATO dal
+    verdetto e dagli score sullo strumento. Non giudica se lo strumento è
+    buono: segnala quanto potrebbe essere impegnativo da gestire per QUESTO
+    utente specifico, dato ciò che ha dichiarato su esperienza e frequenza di
+    monitoraggio rispetto alla pericolosità/complessità dello strumento (PDI).
+    Un prodotto a leva 3x non diventa "peggiore" se l'utente è principiante:
+    resta lo stesso strumento, con lo stesso PDI. Ma per un principiante sarà
+    più difficile da gestire correttamente — è un'informazione sull'utente,
+    non sullo strumento, e non deve mai retroagire sul verdetto operativo.
+    """
+    pdi = (dashboard.get("punteggi") or {}).get("PDI")
+    esperienza = MAPPA_ESPERIENZA.get(dati.get("esperienza_investitore", ""))
+    frequenza = MAPPA_FREQUENZA.get(dati.get("frequenza_monitoraggio", ""))
+    if pdi is None or esperienza is None or frequenza is None:
+        return {"valore": None, "livello": "non calcolabile"}
+
+    capacita_utente = (esperienza + frequenza) / 2
+    valore = round(max(0.0, min(100.0, pdi - capacita_utente)), 1)
+    if valore <= 20:
+        livello = "Bassa"
+    elif valore <= 50:
+        livello = "Media"
+    else:
+        livello = "Alta"
+    return {"valore": valore, "livello": livello}
+
+
+def applica_gates(dashboard: dict) -> dict:
+    """
+    Applica in sequenza il gate EAS e il gate Fit Score al verdetto del modello,
+    in modo deterministico. Ogni gate può declassare ulteriormente il verdetto
+    rispetto allo stato lasciato dal gate precedente; ogni intervento è
+    registrato esplicitamente in dashboard["declassamenti"] (lista, mai un
+    singolo evento silenzioso), con motivo leggibile.
+    """
+    dashboard["verdetto_modello"] = dashboard.get("verdetto")
+    dashboard["declassamenti"] = []
     dashboard["composite"] = calcola_composite(dashboard.get("punteggi") or {})
 
-    verdetto_originale = dashboard.get("verdetto")
-    dashboard["verdetto_modello"] = verdetto_originale
-    dashboard["verdetto_declassato_da_gate"] = False
+    # Gate EAS: la base informativa è adeguata per un verdetto?
+    eas = calcola_eas(dashboard.get("eas_componenti") or {})
+    dashboard["eas"] = eas
+    valore_eas = eas.get("valore")
+    if valore_eas is not None:
+        corrente = dashboard.get("verdetto")
+        if valore_eas < 40 and corrente not in ("Scartare", "Approfondire prima di decidere"):
+            dashboard["verdetto"] = "Approfondire prima di decidere"
+            dashboard["declassamenti"].append({
+                "gate": "EAS", "da": corrente, "a": dashboard["verdetto"],
+                "motivo": f"EAS {valore_eas}/100: base informativa insufficiente per un verdetto pieno",
+            })
+        elif valore_eas < 60 and corrente == "Procedere":
+            dashboard["verdetto"] = "Procedere solo se"
+            dashboard["declassamenti"].append({
+                "gate": "EAS", "da": corrente, "a": dashboard["verdetto"],
+                "motivo": f"EAS {valore_eas}/100: verdetto ammesso solo con condizioni",
+            })
 
-    valore = eas.get("valore")
-    if valore is None:
-        return dashboard
+    # Gate Fit Score: lo strumento è compatibile con orizzonte/strategia dell'utente?
+    fit = calcola_fit_score(dashboard.get("fit_componenti") or {})
+    dashboard["fit"] = fit
+    valore_fit = fit.get("valore")
+    if valore_fit is not None:
+        corrente = dashboard.get("verdetto")
+        if valore_fit < 40 and corrente not in ("Scartare", "Approfondire prima di decidere"):
+            dashboard["verdetto"] = "Scartare"
+            dashboard["declassamenti"].append({
+                "gate": "Fit Score", "da": corrente, "a": dashboard["verdetto"],
+                "motivo": f"Fit Score {valore_fit}/100: incompatibilità strutturale con orizzonte o strategia dichiarati",
+            })
+        elif valore_fit < 65 and corrente == "Procedere":
+            dashboard["verdetto"] = "Procedere solo se"
+            dashboard["declassamenti"].append({
+                "gate": "Fit Score", "da": corrente, "a": dashboard["verdetto"],
+                "motivo": f"Fit Score {valore_fit}/100: richiede condizioni per essere compatibile con l'utente",
+            })
 
-    if valore < 40 and verdetto_originale not in ("Scartare", "Approfondire prima di decidere"):
-        dashboard["verdetto"] = "Approfondire prima di decidere"
-        dashboard["verdetto_declassato_da_gate"] = True
-    elif valore < 60 and verdetto_originale == "Procedere":
-        dashboard["verdetto"] = "Procedere solo se"
-        dashboard["verdetto_declassato_da_gate"] = True
-
+    dashboard["verdetto_declassato_da_gate"] = len(dashboard["declassamenti"]) > 0
     return dashboard
 
 
 def extract_dashboard(report_md: str):
     """
     Estrae il blocco JSON di sintesi (verdetto, punteggi, importi) dal report,
-    applica il gate EAS deterministico, e restituisce (report_pulito, dashboard_dict_o_None).
-    Se il blocco manca o non è JSON valido, ritorna il report invariato e None:
-    l'app mostrerà comunque la relazione completa, solo senza il cruscotto.
+    applica i gate deterministici (EAS, Fit Score), e restituisce
+    (report_pulito, dashboard_dict_o_None). Se il blocco manca o non è JSON
+    valido, ritorna il report invariato e None: l'app mostrerà comunque la
+    relazione completa, solo senza il cruscotto.
     """
     match = DASHBOARD_RE.search(report_md)
     if not match:
@@ -204,7 +296,7 @@ def extract_dashboard(report_md: str):
         dashboard = json.loads(raw_json)
     except json.JSONDecodeError:
         return clean, None
-    return clean, applica_gate_eas(dashboard)
+    return clean, applica_gates(dashboard)
 
 
 def _api_key() -> str:

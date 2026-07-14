@@ -12,6 +12,8 @@ CAMPI_OBBLIGATORI = [
     "valuta",
     "tesi_speculativa",
     "orizzonte",
+    "esperienza_investitore",
+    "frequenza_monitoraggio",
 ]
 
 

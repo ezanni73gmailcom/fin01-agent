@@ -90,21 +90,22 @@ def _render_verdict_badge(dashboard: dict):
     confidenza = dashboard.get("confidenza", "n/d")
     sintesi = dashboard.get("sintesi", "")
     eas = dashboard.get("eas") or {}
-    eas_valore = eas.get("valore")
-    eas_gate = eas.get("gate", "n/d")
+    fit = dashboard.get("fit") or {}
 
-    eas_riga = ""
-    if eas_valore is not None:
-        eas_riga = f"&nbsp;•&nbsp; EAS: {eas_valore}/100 ({eas_gate})"
-    else:
-        eas_riga = "&nbsp;•&nbsp; EAS: non calcolabile (componenti mancanti)"
+    def _riga_gate(nome, info):
+        valore = info.get("valore")
+        if valore is not None:
+            return f"&nbsp;•&nbsp; {nome}: {valore}/100 ({info.get('gate', 'n/d')})"
+        return f"&nbsp;•&nbsp; {nome}: non calcolabile"
+
+    riga_gate = _riga_gate("EAS", eas) + _riga_gate("Fit", fit)
 
     st.markdown(
         f"""
         <div style="border-left: 6px solid {colore}; background: rgba(255,255,255,0.04);
                     padding: 18px 22px; border-radius: 8px; margin-bottom: 8px;">
             <div style="font-size: 0.8rem; letter-spacing: 0.05em; opacity: 0.7; text-transform: uppercase;">
-                Verdetto operativo &nbsp;•&nbsp; Confidenza: {confidenza}{eas_riga}
+                Verdetto operativo &nbsp;•&nbsp; Confidenza: {confidenza}{riga_gate}
             </div>
             <div style="font-size: 1.6rem; font-weight: 700; color: {colore}; margin: 4px 0 8px 0;">
                 {verdetto}
@@ -114,11 +115,10 @@ def _render_verdict_badge(dashboard: dict):
         """,
         unsafe_allow_html=True,
     )
-    if dashboard.get("verdetto_declassato_da_gate"):
+    for d in dashboard.get("declassamenti", []):
         st.info(
-            f"Il verdetto del modello era **{dashboard.get('verdetto_modello')}**: è stato declassato "
-            f"automaticamente a **{verdetto}** perché l'EAS ({eas_valore}/100) non è sufficiente a "
-            f"sostenerlo. Questo intervento è deterministico, non un'opinione del modello."
+            f"Gate **{d['gate']}**: il verdetto è passato da **{d['da']}** a **{d['a']}** — {d['motivo']}. "
+            f"Intervento deterministico, non un'opinione del modello."
         )
 
 
@@ -134,13 +134,30 @@ LABEL_PUNTEGGI = {
 }
 
 
-def _render_radar(punteggi: dict):
+CAUSE_ND_LABEL = {
+    "A": "dati pubblicamente non disponibili",
+    "B": "fonti insufficienti consultate",
+    "C": "fonti contraddittorie",
+    "D": "tempo di ricerca insufficiente in questa sessione",
+    "E": "richiede accesso a banche dati professionali (es. Bloomberg, LSEG, FactSet)",
+}
+
+
+def _render_radar(punteggi: dict, cause_nd: dict = None):
+    cause_nd = cause_nd or {}
     chiavi_disponibili = [k for k, v in punteggi.items() if v is not None]
     chiavi_nd = [k for k, v in punteggi.items() if v is None]
 
     if chiavi_nd:
-        etichette_nd = ", ".join(LABEL_PUNTEGGI.get(k, k) for k in chiavi_nd)
-        st.caption(f"Non determinabile (dato non reperito, nessuna stima sostitutiva): {etichette_nd}")
+        righe_nd = []
+        for k in chiavi_nd:
+            etichetta = LABEL_PUNTEGGI.get(k, k)
+            causa = cause_nd.get(k)
+            if causa in CAUSE_ND_LABEL:
+                righe_nd.append(f"{etichetta} (causa {causa}: {CAUSE_ND_LABEL[causa]})")
+            else:
+                righe_nd.append(etichetta)
+        st.caption("Non determinabile, nessuna stima sostitutiva: " + "; ".join(righe_nd))
 
     if not chiavi_disponibili:
         st.caption("Nessun punteggio calcolabile con i dati reperiti.")
@@ -196,30 +213,67 @@ LABEL_COMPOSITE = {
 }
 
 
-def _render_composite(composite: dict):
+def _render_composite(composite: dict, fit: dict = None):
     st.caption("Dimensioni composite (calcolate dal sistema, propagazione stretta dell'indeterminatezza)")
-    cols = st.columns(3)
-    for col, (chiave, etichetta) in zip(cols, LABEL_COMPOSITE.items()):
+    fit = fit or {}
+    cols = st.columns(4)
+    for col, (chiave, etichetta) in zip(cols[:3], LABEL_COMPOSITE.items()):
         valore = composite.get(chiave)
         with col:
             if valore is None:
                 st.metric(etichetta, "Non calcolabile")
             else:
                 st.metric(etichetta, f"{valore}/100")
+    with cols[3]:
+        valore_fit = fit.get("valore")
+        if valore_fit is None:
+            st.metric("Fit Score (utente)", "Non calcolabile")
+        else:
+            st.metric("Fit Score (utente)", f"{valore_fit}/100", help=fit.get("gate"))
+
+
+def _render_difficolta_gestionale(idg: dict):
+    valore = idg.get("valore")
+    livello = idg.get("livello", "non calcolabile")
+    if valore is None:
+        return
+    colori = {"Bassa": "#4caf9e", "Media": "#e8a33d", "Alta": "#c0392b"}
+    colore = colori.get(livello, "#8a8a8a")
+    st.markdown(
+        f"""
+        <div style="border: 1px solid rgba(255,255,255,0.15); border-radius: 8px;
+                    padding: 12px 16px; margin: 12px 0;">
+            <div style="font-size: 0.75rem; opacity: 0.65; text-transform: uppercase; letter-spacing: 0.04em;">
+                Indice di Difficoltà Gestionale — su di te, non sullo strumento
+            </div>
+            <div style="font-size: 1.1rem; font-weight: 600; color: {colore}; margin-top: 4px;">
+                {livello} ({valore}/100)
+            </div>
+            <div style="font-size: 0.85rem; opacity: 0.8; margin-top: 4px;">
+                Non cambia il giudizio sullo strumento — segnala solo quanto potrebbe essere
+                impegnativo da seguire correttamente, in base a esperienza e frequenza di
+                monitoraggio che hai dichiarato.
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def render_dashboard(dashboard: dict, capitale_utente: float = 0):
     st.subheader("Schermata di sintesi")
     _render_verdict_badge(dashboard)
     _render_tms(dashboard.get("tms"))
+    if dashboard.get("difficolta_gestionale"):
+        _render_difficolta_gestionale(dashboard["difficolta_gestionale"])
     st.write("")
     if dashboard.get("composite"):
-        _render_composite(dashboard["composite"])
+        _render_composite(dashboard["composite"], dashboard.get("fit"))
         st.write("")
     col1, col2 = st.columns(2)
     with col1:
         st.caption("Profilo di rischio/opportunità (0-100)")
-        _render_radar(dashboard.get("punteggi", {}))
+        _render_radar(dashboard.get("punteggi", {}), dashboard.get("cause_nd"))
     with col2:
         st.caption("Dimensionamento della posizione")
         _render_importi(dashboard.get("importi", {}), capitale_utente)
@@ -353,6 +407,24 @@ if strumento and mercato and valuta_strumento:
     if orizzonte_scelta == "Altro (specifica sotto)":
         orizzonte = st.text_input("Specifica l'orizzonte")
 
+    st.caption(
+        "I due campi seguenti sono obbligatori. Non influenzano il giudizio sullo strumento "
+        "(uno stesso ISIN a leva resta uguale per chiunque), ma determinano l'Indice di Difficoltà "
+        "Gestionale: quanto potrebbe essere impegnativo da seguire correttamente per te, in base a "
+        "quanto hai dichiarato."
+    )
+    c_esp, c_freq = st.columns(2)
+    with c_esp:
+        esperienza_investitore = st.selectbox(
+            "La tua esperienza con strumenti di questo tipo",
+            ["Non specificato", "Nessuna/principiante", "Intermedia", "Esperta/professionale"],
+        )
+    with c_freq:
+        frequenza_monitoraggio = st.selectbox(
+            "Con che frequenza monitoreresti la posizione",
+            ["Non specificato", "Sporadicamente (mensile o meno)", "Settimanale", "Giornaliera/intraday"],
+        )
+
     st.divider()
     st.subheader("3. Dati patrimoniali")
     valuta_dati = st.selectbox("Valuta dei tuoi dati patrimoniali", ["EUR", "USD"], index=0)
@@ -376,6 +448,8 @@ if strumento and mercato and valuta_strumento:
             "valuta": valuta_strumento,
             "tesi_speculativa": tesi_speculativa,
             "orizzonte": orizzonte,
+            "esperienza_investitore": esperienza_investitore if esperienza_investitore != "Non specificato" else "",
+            "frequenza_monitoraggio": frequenza_monitoraggio if frequenza_monitoraggio != "Non specificato" else "",
             "capitale_disponibile": f"{capitale_disponibile} {valuta_dati}",
             "patrimonio_indicativo": f"{patrimonio_indicativo} {valuta_dati}",
             "perdita_massima_accettabile": f"{perdita_massima_accettabile} {valuta_dati}",
@@ -394,6 +468,8 @@ if strumento and mercato and valuta_strumento:
 
             sintesi_pulita, dashboard = agent.extract_dashboard(risultato["report_md"])
             troncato = risultato.get("stop_reason") == "max_tokens" and not dashboard
+            if dashboard:
+                dashboard["difficolta_gestionale"] = agent.calcola_difficolta_gestionale(dati, dashboard)
 
             registry.update_pratica(
                 pratica["id"], stato="Sintesi prodotta", sintesi_md=sintesi_pulita,
