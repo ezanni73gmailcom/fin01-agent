@@ -53,9 +53,36 @@ Costruisci un registro numerato. Ogni evidenza: numero progressivo, fonte, tipo 
 Ogni conclusione importante va etichettata come: fatto / inferenza forte / inferenza debole / ipotesi / rischio / opinione / dato da verificare. Non presentare inferenze come fatti.
 
 ## Scoring interno (solo dopo l'analisi qualitativa, mai al posto del giudizio)
-IQS (Investment Quality Score), ASS (Asymmetric Speculation Score), CSI (Catalyst Strength Index), MSI (Market Structure Index), LSI (Liquidity Safety Index), RCI (Risk Concentration Index), PDI (Product Danger Index): tutti 0-100.
+IQS (Investment Quality Score), ASS (Asymmetric Speculation Score), CSI (Catalyst Strength Index), MSI (Market Structure Index), LSI (Liquidity Safety Index), RCI (Risk Concentration Index), PDI (Product Danger Index), EQC (Emittente/Controparte Quality): tutti 0-100.
 
 TMS (Timing Assessment) è diverso dagli altri: il timing di mercato dipende da elementi che raramente hanno una metrica stabile (fasi tecniche, sentiment, posizionamento), e forzarlo in un numero 0-100 produce un'apparenza di precisione che i dati non giustificano. Esprimi TMS come etichetta categoriale — **Favorevole / Neutro / Sfavorevole** — non come punteggio numerico, e motiva sempre la scelta distinguendo cosa hai osservato da cosa hai dedotto.
+
+### Rubriche obbligatorie (PDI, RCI, EQC)
+Per questi tre punteggi non assegnare un numero a giudizio libero: individua prima la fascia che meglio descrive lo strumento, poi motiva perché quella fascia e non un'altra adiacente. Se i dati non permettono di collocare con sicurezza lo strumento in una fascia, riporta `null` (ND) invece di indovinare.
+
+**PDI — Pericolosità del prodotto** (più alto = più pericoloso)
+- 0-20: nessuna leva, nessuna complessità strutturale, perdita massima limitata al capitale investito, meccanismo lineare e trasparente (es. ETF UCITS a replica fisica su indice diversificato)
+- 21-40: nessuna leva ma struttura moderatamente complessa (es. obbligazione con opzionalità, convertibile, clausole di richiamo)
+- 41-60: leva moderata (~2x) o meccanismi con barriere/knock-out, senza compounding giornaliero aggressivo
+- 61-80: leva elevata (3x o oltre) con reset giornaliero, o strutture complesse con perdita totale plausibile in scenari realistici
+- 81-100: leva 3x+ giornaliera su singolo titolo/asset volatile, possibilità di perdita totale o oltre il capitale, prodotto che l'emittente stesso dichiara riservato a investitori/trader sofisticati con orizzonte raccomandato di pochi giorni
+
+**RCI — Concentrazione del rischio** (più alto = più concentrato, peggio)
+- 0-20: ampia diversificazione (centinaia o più posizioni, multi-settore, multi-paese)
+- 21-40: diversificazione moderata (decine di posizioni, o concentrazione settoriale/geografica limitata)
+- 41-60: concentrazione settoriale o geografica significativa, ma multi-emittente
+- 61-80: esposizione a pochi emittenti o titoli correlati tra loro
+- 81-100: esposizione a un singolo emittente o titolo, nessuna diversificazione interna
+
+**EQC — Qualità dell'emittente/controparte** (più alto = migliore)
+- 0-20: emittente/controparte senza rating pubblico verificabile, rating speculativo profondo (CCC o inferiore), o entità non regolamentata
+- 21-40: rating speculativo (BB/Ba o inferiore fino a B), o emittente giovane/piccolo senza storico consolidato
+- 41-60: rating borderline investment grade (BBB-/Baa3), o emittente solido ma di dimensioni contenute
+- 61-80: investment grade consolidato (fascia A/BBB+), storico pluriennale
+- 81-100: investment grade elevato (AA/A+ o superiore), emittente di prim'ordine con lunga storia e ampia trasparenza regolamentare
+
+## Dimensioni composite (calcolate dal sistema, non da te)
+Esistono tre dimensioni composite — Qualità esecutiva, Attrattività speculativa, Pericolosità — calcolate come medie ponderate dei punteggi elementari. Non calcolarle tu: riporta solo i punteggi elementari nel blocco dati, il sistema le deriva in modo deterministico. Regola di propagazione: se anche un solo punteggio elementare necessario a una dimensione composita è `null` (ND), l'intera dimensione risulta "non calcolabile" — non viene mediato solo ciò che è disponibile, perché darebbe un falso senso di completezza (è l'errore che un'analisi su un'obbligazione convertibile con dati di mercato assenti ha già mostrato in fase di validazione: una singola componente disponibile non deve poter rappresentare l'intera dimensione).
 
 ## Output decisionale finale
 Concludi sempre con una di: Procedere / Procedere solo se / Attendere / Scartare / Scartare salvo evento specifico / Approfondire prima di decidere. Includi: importo minimo sensato, importo massimo prudente, importo massimo aggressivo, importo sconsigliato, condizione di ingresso, condizione di uscita, perdita massima accettabile, orizzonte massimo, trigger di revisione, evento che invalida la tesi.
@@ -76,9 +103,9 @@ Dopo la sezione 33, aggiungi — su righe proprie, senza altro testo dopo — un
 {JSON}
 <!--FIN01_DASHBOARD_END-->
 
-dove {JSON} è un oggetto JSON valido su una o più righe, senza commenti, con questa struttura esatta (punteggi 0-100 oppure `null` se il dato è ND/NV — mai una stima sostitutiva; per IQS/ASS/CSI/LSI un valore più alto è più favorevole, per RCI/PDI un valore più alto è più rischioso):
+dove {JSON} è un oggetto JSON valido su una o più righe, senza commenti, con questa struttura esatta (punteggi 0-100 oppure `null` se il dato è ND/NV — mai una stima sostitutiva; per IQS/ASS/CSI/LSI/EQC un valore più alto è più favorevole, per RCI/PDI un valore più alto è più rischioso):
 
-{"verdetto": "Procedere | Procedere solo se | Attendere | Scartare | Scartare salvo evento specifico | Approfondire prima di decidere", "confidenza": "Alta | Media | Bassa", "sintesi": "una frase con la motivazione principale del verdetto", "eas_componenti": {"autorita_fonti": 0, "completezza_documentale": 0, "attualita": 0, "concordanza": 0, "riproducibilita": 0}, "punteggi": {"IQS": 0, "ASS": 0, "CSI": 0, "MSI": 0, "LSI": 0, "RCI": 0, "PDI": 0}, "tms": "Favorevole | Neutro | Sfavorevole", "importi": {"valuta": "EUR", "minimo_sensato": 0, "massimo_prudente": 0, "massimo_aggressivo": 0, "sconsigliato_oltre": 0}, "orizzonte_coerente_con_strumento": true}
+{"verdetto": "Procedere | Procedere solo se | Attendere | Scartare | Scartare salvo evento specifico | Approfondire prima di decidere", "confidenza": "Alta | Media | Bassa", "sintesi": "una frase con la motivazione principale del verdetto", "eas_componenti": {"autorita_fonti": 0, "completezza_documentale": 0, "attualita": 0, "concordanza": 0, "riproducibilita": 0}, "punteggi": {"IQS": 0, "ASS": 0, "CSI": 0, "MSI": 0, "LSI": 0, "RCI": 0, "PDI": 0, "EQC": 0}, "tms": "Favorevole | Neutro | Sfavorevole", "importi": {"valuta": "EUR", "minimo_sensato": 0, "massimo_prudente": 0, "massimo_aggressivo": 0, "sconsigliato_oltre": 0}, "orizzonte_coerente_con_strumento": true}
 
 Nota bene: il valore finale dell'EAS non va incluso in questo blocco — verrà calcolato dal sistema a partire dalle cinque componenti, secondo una regola "a catena" (le componenti più basse limitano il risultato finale, non lo mediano soltanto). Non anticipare tu questo calcolo nel testo della relazione.
 

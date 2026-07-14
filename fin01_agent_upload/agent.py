@@ -126,6 +126,38 @@ def calcola_eas(componenti: dict) -> dict:
     return {"valore": round(valore_finale, 1), "gate": gate}
 
 
+def calcola_composite(punteggi: dict) -> dict:
+    """
+    Calcola le tre dimensioni composite (Qualità esecutiva, Attrattività speculativa,
+    Pericolosità) a partire dai punteggi elementari, con propagazione STRETTA
+    dell'indeterminatezza: se anche un solo punteggio necessario è ND (None/null),
+    l'intera dimensione composita diventa None ("non calcolabile"), invece di
+    mediare solo le componenti disponibili — che darebbe un falso senso di
+    completezza (vedi Caso C della VP-01: un'obbligazione convertibile con 3
+    punteggi su 4 mancanti non deve risultare "buona" sulla base dell'unico
+    disponibile).
+
+    Nota: TMS è categoriale (Favorevole/Neutro/Sfavorevole), non un numero, quindi
+    è escluso da questa formula per costruzione — non incluso nella media pesata
+    di Attrattività speculativa, i cui pesi sono stati rinormalizzati di conseguenza
+    (ASS e CSI sommano a 1.0 invece che a 0.8 come nella prima stesura su carta).
+    """
+    def media_pesata(componenti_pesi):
+        valori_pesati = []
+        for chiave, peso in componenti_pesi:
+            v = punteggi.get(chiave)
+            if v is None:
+                return None
+            valori_pesati.append(v * peso)
+        return round(sum(valori_pesati), 1)
+
+    return {
+        "qualita_esecutiva": media_pesata([("IQS", 0.30), ("MSI", 0.25), ("LSI", 0.25), ("EQC", 0.20)]),
+        "attrattivita_speculativa": media_pesata([("ASS", 0.5625), ("CSI", 0.4375)]),
+        "pericolosita": media_pesata([("PDI", 0.60), ("RCI", 0.40)]),
+    }
+
+
 def applica_gate_eas(dashboard: dict) -> dict:
     """
     Applica il gate EAS al verdetto del modello, in modo deterministico.
@@ -136,6 +168,7 @@ def applica_gate_eas(dashboard: dict) -> dict:
     componenti = dashboard.get("eas_componenti") or {}
     eas = calcola_eas(componenti)
     dashboard["eas"] = eas
+    dashboard["composite"] = calcola_composite(dashboard.get("punteggi") or {})
 
     verdetto_originale = dashboard.get("verdetto")
     dashboard["verdetto_modello"] = verdetto_originale

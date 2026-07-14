@@ -130,6 +130,7 @@ LABEL_PUNTEGGI = {
     "LSI": "Sicurezza della liquidità",
     "RCI": "Concentrazione del rischio",
     "PDI": "Pericolosità del prodotto",
+    "EQC": "Qualità emittente/controparte",
 }
 
 
@@ -188,11 +189,33 @@ def _render_importi(importi: dict, capitale_utente: float):
     st.plotly_chart(fig, width="stretch")
 
 
+LABEL_COMPOSITE = {
+    "qualita_esecutiva": "Qualità esecutiva",
+    "attrattivita_speculativa": "Attrattività speculativa",
+    "pericolosita": "Pericolosità",
+}
+
+
+def _render_composite(composite: dict):
+    st.caption("Dimensioni composite (calcolate dal sistema, propagazione stretta dell'indeterminatezza)")
+    cols = st.columns(3)
+    for col, (chiave, etichetta) in zip(cols, LABEL_COMPOSITE.items()):
+        valore = composite.get(chiave)
+        with col:
+            if valore is None:
+                st.metric(etichetta, "Non calcolabile")
+            else:
+                st.metric(etichetta, f"{valore}/100")
+
+
 def render_dashboard(dashboard: dict, capitale_utente: float = 0):
     st.subheader("Schermata di sintesi")
     _render_verdict_badge(dashboard)
     _render_tms(dashboard.get("tms"))
     st.write("")
+    if dashboard.get("composite"):
+        _render_composite(dashboard["composite"])
+        st.write("")
     col1, col2 = st.columns(2)
     with col1:
         st.caption("Profilo di rischio/opportunità (0-100)")
